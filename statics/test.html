@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<script>
+    const SVRURL='http://localhost:8081/api/v1/user/1/site/1/count'
+// var xmlhttp = null;
+// if (window.XMLHttpRequest)
+// {// code for IE7+, Firefox, Chrome, Opera, Safari
+//     xmlhttp = new XMLHttpRequest();
+// }
+// else
+// {// code for IE6, IE5
+//     xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+// }
+// var location=window.location.
+// var params = "{}";
+// xmlhttp.open("POST", SVRURL, true);
+// xmlhttp.setRequestHeader("Content-type", "application/json; charset=utf-8");
+// xmlhttp.setRequestHeader("Content-length", params.length);
+// xmlhttp.setRequestHeader("Connection", "close");
+// xmlhttp.send(params);
+/**
+* IE 5.5+, Firefox, Opera, Chrome, Safari XHR object
+* 
+* @param string url
+* @param object callback
+* @param mixed data
+* @param null x
+*/
+function countAjax(url, callback, data, x) {
+   try {
+       x = new(this.XMLHttpRequest || ActiveXObject)('MSXML2.XMLHTTP.3.0');
+       x.open(data ? 'POST' : 'GET', url, 1);
+       x.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+       x.setRequestHeader("Content-type", "application/json; charset=utf-8");
+       x.onreadystatechange = function () {
+           x.readyState > 3 && callback && callback(x.responseText, x);
+       };
+       x.send(data)
+   } catch (e) {
+       window.console && console.log(e);
+   }
+};
+/*
+from         |
+| to        | varchar(255) | YES  |     | NULL    |                |
+| host      | varchar(255) | YES  |     | NULL    |                |
+| hit       | int(11)      | YES  |     | NULL    |                |
+| hostName  | varchar(255) | YES  |     | NULL    |                |
+| href      | varchar(255) | YES  |     | NULL    |                |
+| protocol  | varchar(255) | YES  |     | NULL    |                |
+| pathName  | varchar(255) | YES  |     | NULL    |                |
+| ext       | varchar(255) | YES  |     | NULL    |                |
+| createdAt | datetime     | NO   |     | NULL    |                |
+| updatedAt | datetime     | NO   |     | NULL    |                |
+| siteId    | int(11)      | YES  | MUL | NULL    |   
+*/
+function analysisRequestInfo(){
+   countInfo={
+    'from':document.referrer,
+    'hostName':window.location.hostname,
+    'host':window.location.host,
+    'hit':1,
+    'href':window.location.href,
+    'protocol':window.location.protocol,
+    'pathName':window.location.pathname,
+    'ext':'{}'
+   };
+   return countInfo; 
+}
+countAjax(SVRURL,()=>{
+  console.log("done...,do nothing...");
+},JSON.stringify(analysisRequestInfo())); 
+
+</script>
+</body>
+</html>
