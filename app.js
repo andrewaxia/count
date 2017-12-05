@@ -1,8 +1,9 @@
 var express = require('express');
 var bodyParser = require('body-parser');
 var app = express();
+var secrets=require('./utils/secrets.js')
 const Sequelize = require('sequelize');
-const sequelize = new Sequelize('thedb', 'artista', 'artista', {
+const sequelize = new Sequelize('counterdb', '*', '*', {
   host: '192.168.3.104',
   dialect: 'mysql',
   pool: {
@@ -11,6 +12,7 @@ const sequelize = new Sequelize('thedb', 'artista', 'artista', {
     idle: 10000
   }
 });
+
 sequelize.authenticate().then(() => {
   console.log('Connection has been established successfully.');
 }).catch(err => {
@@ -29,7 +31,8 @@ const User = sequelize.define('user', {
     phone:{type:Sequelize.DataTypes.STRING},
     userPassword:{
         type:Sequelize.DataTypes.STRING
-    }
+    },
+    token:{type:Sequelize.DataTypes.STRING},   
   });
 const Site=sequelize.define('site',{
       name:{
@@ -54,7 +57,7 @@ User.Sites=User.hasMany(Site);
 //Site.belongsTo(User); 
 Site.Counts=Site.hasMany(Count); 
 //Count.belongsTo(Site); 
-sequelize.sync({force:false}).then(()=>{
+sequelize.sync({force:true}).then(()=>{
     console.log('db synched up '); 
 }); 
 
@@ -93,8 +96,122 @@ app.use(cors());
 *  Constants definition...
 */
 const  SERVICEPREFIX='/api/v1'; 
+//**********************************unprotected.............. */
+//  ******************************************** /
+
+/*
+req
+{
+    "userName":"jiandong",
+    "password":"password"
+}
+res:
+{
+    "token":"xxxxxx"
+}
+*/
+
+app.post(SERVICEPREFIX+'/login',function(req,res,next){
+    var userAuh=req.body; 
+    var userName=userAuh.userName; 
+    var userPass=userAuh.password; 
+    User.findOne({where:{'userName':userName}}).then(user=>{
+     if(user==null){
+      res.status(400).json({info:"user not found"}); 
+     }else {
+        var hashCode=require('crypto').createHash('sha256',secrets.secret).update(userPass).digest('hex')
+        if(hashCode==user.userPassword){    
+        var jwt = require('jsonwebtoken');
+        var token=jwt.sign({userName:userPass},secrets.anohterSecret,{ expiresIn: 60 * 60 })
+        res.json({'status':'success','token':token}); 
+    }else{
+      res.status(400).json({'status':'failed...','info':'authentication failed...'});  
+    }
+     }
+     
+    }); 
+}); 
+/*
+req
+{ 
+    "userName":"jiandong",
+    "password":"xxxx"
+}
+status:200
+res{
+  info:"success..."  
+}
+*/
+app.post(SERVICEPREFIX+'/register',function(req,res,next){
+    var userName=req.body.userName; 
+    var userPasswod=req.body.password; 
+    User.findOne({where:{'userName':userName}}).then(user=>{
+        if(user==null){
+            let hashCode=require('crypto').createHash('sha256',secrets.secret).update(userPasswod).digest('hex'); 
+            console.log(hashCode); 
+            User.create({'userName':userName,'userPassword':hashCode}).then(createdUser=>{
+               res.json(createdUser); 
+            }).done(next); 
+        }else{
+        return res.status(400).json({'info':'duplicated user name'});
+        }
+    })
+
+})
+/**
+ * http code :200
+ */
+app.post(SERVICEPREFIX+'/logout',function(){
+
+})
+
+/**
+ * Statistics Services....
+ */
+app.get(SERVICEPREFIX+'/stats/user/:userId/bysite',function(req,res,next){
+    var uid=req.params.userId; 
+    var statistics={}; 
+        sequelize.query("select u.id as userId,s.id as siteId,s.name as siteName,c.id as countId,sum(c.hit) as hits from users u join sites s on u.id=s.userId join counts c on s.id=c.siteId where c.hit<>'null' and u.id=:userId group by u.id,s.id  ",
+            {replacements:{userId:parseInt(uid)},type: sequelize.QueryTypes.SELECT}).then(results=>{
+                res.json(results); 
+              }) ;     
+});
+app.get(SERVICEPREFIX+'/stats/user/:userId/byday',function(req,res,next){
+    var uid=req.params.userId; 
+    var statistics={}; 
+        sequelize.query("select s.name as siteName,date(c.updatedAt) as day, sum(hit) as hits from counts c join sites s on c.siteId=s.id where s.userId=:userId group by siteid,day,hostName ",
+            {replacements:{userId:parseInt(uid)},type: sequelize.QueryTypes.SELECT}).then(results=>{
+                res.json(results); 
+              }) ;     
+}); 
 
 
+//-------------------------------------------------------
+var apiRoutes = express.Router(); 
+apiRoutes.use(function(req,res,next){
+    var token = req.body.token || req.query.token || req.headers['x-access-token']
+    if(token){
+        var jwt = require('jsonwebtoken');
+        jwt.verify(token,secrets.anohterSecret,function(erro,decoded){
+            if(erro){
+                res.status(401).json({status:'failed',info:'permissions denied'}); 
+            }
+            else{
+                req.decoded=decoded; 
+                next(); 
+            }
+        })
+    }else{
+        // if there is no token
+        // return an error
+        return res.status(403).send({ 
+            success: false, 
+            message: 'No token provided.' 
+        });
+    }
+});
+app.use(SERVICEPREFIX,apiRoutes); 
+//--------------------------below are protected ----------------------
 /**
  *   services....User...
  */
@@ -107,7 +224,7 @@ app.get(SERVICEPREFIX+'/user', function (req, res) {
 }); 
 app.get(SERVICEPREFIX+'/user/:id', function (req, res) {
     console.log('send the message out..'); 
-    User.findOne({where:{id:req.param("id")}}).then(user=>{
+    User.findOne({where:{id:req.params.id}}).then(user=>{
         console.log(user); 
          return res.json(user); 
      });   
@@ -174,8 +291,6 @@ app.delete(SERVICEPREFIX+'/user/:userId/site/:siteId',function(req,res,next){
 /*
 *   services-site's hit info
 */
-
-
 app.get(SERVICEPREFIX+'/user/:userId/site/:siteId/count',function(req,res,next){
     var uid=req.params.userId; 
     var sid=req.params.siteId; 
@@ -265,30 +380,11 @@ app.delete(SERVICEPREFIX+'/user/:userId/site/:siteId/count/:countId',function(re
 });
 
 /**
- * Statistics Services....
- */
-app.get(SERVICEPREFIX+'/stats/user/:userId/bysite',function(req,res,next){
-    var uid=req.params.userId; 
-    var statistics={}; 
-        sequelize.query("select u.id as userId,s.id as siteId,s.name as siteName,c.id as countId,sum(c.hit) as hits from users u join sites s on u.id=s.userId join counts c on s.id=c.siteId where c.hit<>'null' and u.id=:userId group by u.id,s.id  ",
-            {replacements:{userId:parseInt(uid)},type: sequelize.QueryTypes.SELECT}).then(results=>{
-                res.json(results); 
-              }) ;     
-});
-app.get(SERVICEPREFIX+'/stats/user/:userId/byday',function(req,res,next){
-    var uid=req.params.userId; 
-    var statistics={}; 
-        sequelize.query("select s.name as siteName,pathName,date(c.updatedAt) as day, sum(hit) from counts c join sites s on c.siteId=s.id where s.userId=:userId group by siteid,day,hostName ",
-            {replacements:{userId:parseInt(uid)},type: sequelize.QueryTypes.SELECT}).then(results=>{
-                res.json(results); 
-              }) ;     
-});  
-
-/**
  * the Main entry point.....
  */
 var server = app.listen(8081, function () {
    var host = server.address().address
    var port = server.address().port
   console.log("the app listening at http://%s:%s", host, port)
+
 })
