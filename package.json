@@ -4,7 +4,7 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha unittest/testSilence.js"
   },
   "keywords": [
     "count",
@@ -14,9 +14,11 @@
   "license": "ISC",
   "dependencies": {
     "body-parser": "^1.18.2",
+    "chai": "^4.1.2",
     "cookie-parser": "^1.4.3",
     "express": "^4.16.2",
     "jsonwebtoken": "^8.1.0",
+    "mocha": "^4.0.1",
     "mysql2": "^1.4.2",
     "sequelize": "^4.8.0"
   }

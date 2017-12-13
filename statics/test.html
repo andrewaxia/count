@@ -7,7 +7,7 @@
 <body>
 <script>
     //const SVRURL='http://localhost:8081/api/v1/user/1/site/1/count'
-    const SVRURL='http://count.aintx.com/api/v1/user/1/site/1/count'
+    const SVRURL='http://count.aintx.com/api/v1/datain'
 /**
 * IE 5.5+, Firefox, Opera, Chrome, Safari XHR object
 * 
@@ -46,6 +46,8 @@ from         |
 */
 function analysisRequestInfo(){
    countInfo={
+     'siteToken':'',
+      'data': {
     'from':document.referrer,
     'hostName':window.location.hostname,
     'host':window.location.host,
@@ -54,9 +56,48 @@ function analysisRequestInfo(){
     'protocol':window.location.protocol,
     'pathName':window.location.pathname,
     'ext':'{}'
-   };
+   }
+};
    return countInfo; 
 }
+countAjax(SVRURL,()=>{
+  console.log("done...,do nothing...");
+},JSON.stringify(analysisRequestInfo())); 
+
+</script>
+<script>
+/*compressed version*/
+const SVRURL='http://count.aintx.com/api/v1/datain';
+function countAjax(url, callback, data, x) {
+   try {
+       x = new(this.XMLHttpRequest || ActiveXObject)('MSXML2.XMLHTTP.3.0');
+       x.open(data ? 'POST' : 'GET', url, 1);
+       x.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+       x.setRequestHeader("Content-type", "application/json; charset=utf-8");
+       x.onreadystatechange = function () {
+           x.readyState > 3 && callback && callback(x.responseText, x);
+       };
+       x.send(data)
+   } catch (e) {
+       window.console && console.log(e);
+   }
+};
+function analysisRequestInfo(){
+   countInfo={
+     'siteToken':'',
+      'data': {
+    'from':document.referrer,
+    'hostName':window.location.hostname,
+    'host':window.location.host,
+    'hit':1,
+    'href':window.location.href,
+    'protocol':window.location.protocol,
+    'pathName':window.location.pathname,
+    'ext':'{}'
+   }
+};
+   return countInfo; 
+}; 
 countAjax(SVRURL,()=>{
   console.log("done...,do nothing...");
 },JSON.stringify(analysisRequestInfo())); 
