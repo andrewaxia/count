@@ -25,7 +25,7 @@ function countAjax(url, callback, data, x) {
        x.onreadystatechange = function () {
            x.readyState > 3 && callback && callback(x.responseText, x);
        };
-       x.send(data)
+       x.send(data); 
    } catch (e) {
        window.console && console.log(e);
    }
@@ -77,29 +77,28 @@ function countAjax(url, callback, data, x) {
        x.onreadystatechange = function () {
            x.readyState > 3 && callback && callback(x.responseText, x);
        };
-       x.send(data)
+       x.send(data);
    } catch (e) {
        window.console && console.log(e);
    }
 };
 function analysisRequestInfo(){
    countInfo={
-     'siteToken':'',
-      'data': {
-    'from':document.referrer,
-    'hostName':window.location.hostname,
-    'host':window.location.host,
-    'hit':1,
-    'href':window.location.href,
-    'protocol':window.location.protocol,
-    'pathName':window.location.pathname,
-    'ext':'{}'
+    "siteToken":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxIiwic2l0ZUlkIjoiMSIsImlhdCI6MTUxMzE3Mzk1MywiZXhwIjoxNjQyNzczOTUzfQ.lcalGXRhEBMi0Uxl-HqD26FwswgUPj-vssE8d1bpAyg",
+    "data": {
+    "from":document.referrer,
+    "hostName":window.location.hostname,
+    "host":window.location.host,
+    "hit":1,
+    "href":window.location.href,
+    "protocol":window.location.protocol,
+    "pathName":window.location.pathname,
+    "ext":"{}"
    }
 };
    return countInfo; 
 }; 
 countAjax(SVRURL,()=>{
-  console.log("done...,do nothing...");
 },JSON.stringify(analysisRequestInfo())); 
 
 </script>

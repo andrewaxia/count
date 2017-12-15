@@ -5,11 +5,11 @@ var app = express();
 app.use(cookieParser());
 var secrets = require('./utils/secrets.js')
 const Sequelize = require('sequelize');
-const sequelize = new Sequelize('countdb', 'countuser', '*', {
+const sequelize = new Sequelize(secrets.dbname, secrets.countdbuser, secrets.dbpassword, {
     host: 'localhost',
     dialect: 'mysql',
     pool: {
-        max:20,
+        max: 20,
         min: 0,
         idle: 10000
     }
@@ -20,7 +20,6 @@ sequelize.authenticate().then(() => {
 }).catch(err => {
     console.error('Unable to connect to the database:', err);
 });
-
 
 /* 
 *   Models definition ...
@@ -51,7 +50,8 @@ const Count = sequelize.define("count", {
     href: { type: Sequelize.DataTypes.STRING },     //full link
     protocol: { type: Sequelize.DataTypes.STRING }, //https / http
     pathName: { type: Sequelize.DataTypes.STRING },  //part of the page...
-    ext: { type: Sequelize.DataTypes.STRING }
+    ext: { type: Sequelize.DataTypes.STRING },
+    ip:{type:Sequelize.DataTypes.STRING}            //the request's ip addre in req 
 });
 
 /**relation of models */
@@ -59,7 +59,7 @@ User.Sites = User.hasMany(Site);
 //Site.belongsTo(User); 
 Site.Counts = Site.hasMany(Count);
 //Count.belongsTo(Site); 
-sequelize.sync({ force: false }).then(() => {
+sequelize.sync({ force: true }).then(() => {
     console.log('db synched up ');
 });
 
@@ -112,7 +112,7 @@ res:
     "token":"xxxxxx"
 }
 */
-const AUTHCOOKIENAME='authcookie'; 
+const AUTHCOOKIENAME = 'authcookie';
 app.post(SERVICEPREFIX + '/login', function (req, res, next) {
     var userAuh = req.body;
     var userName = userAuh.userName;
@@ -125,7 +125,7 @@ app.post(SERVICEPREFIX + '/login', function (req, res, next) {
             if (hashCode == user.userPassword) {
                 var jwt = require('jsonwebtoken');
                 var token = jwt.sign({ userName: userPass, 'userId': user.id }, secrets.anohterSecret, { expiresIn: 60 * 60 })
-                res.cookie(AUTHCOOKIENAME,token); 
+                res.cookie(AUTHCOOKIENAME, token);
                 res.json({ 'status': 'success', 'token': token });
             } else {
                 res.status(400).json({ 'status': 'failed...', 'info': 'authentication failed...' });
@@ -161,6 +161,7 @@ app.post(SERVICEPREFIX + '/register', function (req, res, next) {
     })
 
 });
+
 /**
  * for the payload like this:
  * {
@@ -190,6 +191,7 @@ app.post(SERVICEPREFIX + '/datain', function (req, res, next) {
             var userid = siteInfo.userId;
             var siteId = siteInfo.siteId;
             var dataIn = req.body.data; //extend this in future
+            dataIn.ip=req.ip; 
             var countTobeCreated = dataIn;
             countTobeCreated.siteId = siteId;
             Count.create(countTobeCreated).then(createdCount => {
@@ -226,11 +228,25 @@ app.get(SERVICEPREFIX + '/stats/user/:userId/byday', function (req, res, next) {
         });
 });
 
+/**
+ * select pathName,sum(hit) as hits from counts where siteId=1 group by pathName
+ * fixME:  security issue ,need verify ,if the site owner is the user; 
+ */
+app.get(SERVICEPREFIX + '/stats/user/:userId/site/:siteId/bypathname',function(req,res,next){
+    var uid = req.params.userId;
+    var sid = req.params.siteId; 
+    var statistics = {};
+    sequelize.query(" select pathName,sum(hit) as hits from counts c where c.siteId=:siteId group by pathName ",
+        { replacements: { siteId: parseInt(sid) }, type: sequelize.QueryTypes.SELECT }).then(results => {
+            res.json(results);
+        });
+}); 
+
 
 //-------------------------------------------------------
 var apiRoutes = express.Router();
 apiRoutes.use(function (req, res, next) {
-    var token = req.body.token || req.query.token || req.headers['x-access-token'] ||req.cookies.authcookie; 
+    var token = req.body.token || req.query.token || req.headers['x-access-token'] || req.cookies.authcookie;
     if (token) {
         var jwt = require('jsonwebtoken');
         jwt.verify(token, secrets.anohterSecret, function (erro, decoded) {
@@ -243,12 +259,15 @@ apiRoutes.use(function (req, res, next) {
             }
         })
     } else {
-        // if there is no token
-        // return an error
-        return res.status(403).send({
-            success: false,
-            message: 'No token provided.'
-        });
+        //Preflight CORS does OPTIONS request without headers. Let's not require Authorization then
+        if (req.method == 'OPTIONS' || req.path == '/register' || req.path == '/login'  ) {
+           return next(); 
+        } else  {
+           
+            res.statusCode = 401;
+            return next(new Error('Invalid api key or non provided'));
+        }
+       
     }
 });
 app.use(SERVICEPREFIX, apiRoutes);
