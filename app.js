@@ -2,6 +2,7 @@ var express = require('express');
 var bodyParser = require('body-parser');
 var cookieParser = require('cookie-parser');
 var app = express();
+app.enable('trust proxy'); 
 app.use(cookieParser());
 var secrets = require('./utils/secrets.js')
 const Sequelize = require('sequelize');
@@ -51,7 +52,9 @@ const Count = sequelize.define("count", {
     protocol: { type: Sequelize.DataTypes.STRING }, //https / http
     pathName: { type: Sequelize.DataTypes.STRING },  //part of the page...
     ext: { type: Sequelize.DataTypes.STRING },
-    ip:{type:Sequelize.DataTypes.STRING}            //the request's ip addre in req 
+    ip:{type:Sequelize.DataTypes.STRING},            //the request's ip addre in req 
+    loc:{type:Sequelize.DataTypes.STRING},           //provice scale
+    subLoc:{type:Sequelize.DataTypes.STRING}         //major
 });
 
 /**relation of models */
@@ -191,7 +194,7 @@ app.post(SERVICEPREFIX + '/datain', function (req, res, next) {
             var userid = siteInfo.userId;
             var siteId = siteInfo.siteId;
             var dataIn = req.body.data; //extend this in future
-            dataIn.ip=req.ip; 
+            dataIn.ip=req.ips; 
             var countTobeCreated = dataIn;
             countTobeCreated.siteId = siteId;
             Count.create(countTobeCreated).then(createdCount => {
@@ -206,42 +209,7 @@ app.post(SERVICEPREFIX + '/datain', function (req, res, next) {
  */
 app.post(SERVICEPREFIX + '/logout', function () {
 
-})
-
-/**
- * Statistics Services....
- */
-app.get(SERVICEPREFIX + '/stats/user/:userId/bysite', function (req, res, next) {
-    var uid = req.params.userId;
-    var statistics = {};
-    sequelize.query("select u.id as userId,s.id as siteId,s.name as siteName,c.id as countId,sum(c.hit) as hits from users u join sites s on u.id=s.userId join counts c on s.id=c.siteId where c.hit<>'null' and u.id=:userId group by u.id,s.id  ",
-        { replacements: { userId: parseInt(uid) }, type: sequelize.QueryTypes.SELECT }).then(results => {
-            res.json(results);
-        });
-});
-app.get(SERVICEPREFIX + '/stats/user/:userId/byday', function (req, res, next) {
-    var uid = req.params.userId;
-    var statistics = {};
-    sequelize.query("select s.name as siteName,date(c.updatedAt) as day, sum(hit) as hits from counts c join sites s on c.siteId=s.id where s.userId=:userId group by siteid,day,hostName ",
-        { replacements: { userId: parseInt(uid) }, type: sequelize.QueryTypes.SELECT }).then(results => {
-            res.json(results);
-        });
-});
-
-/**
- * select pathName,sum(hit) as hits from counts where siteId=1 group by pathName
- * fixME:  security issue ,need verify ,if the site owner is the user; 
- */
-app.get(SERVICEPREFIX + '/stats/user/:userId/site/:siteId/bypathname',function(req,res,next){
-    var uid = req.params.userId;
-    var sid = req.params.siteId; 
-    var statistics = {};
-    sequelize.query(" select pathName,sum(hit) as hits from counts c where c.siteId=:siteId group by pathName ",
-        { replacements: { siteId: parseInt(sid) }, type: sequelize.QueryTypes.SELECT }).then(results => {
-            res.json(results);
-        });
 }); 
-
 
 //-------------------------------------------------------
 var apiRoutes = express.Router();
@@ -260,7 +228,7 @@ apiRoutes.use(function (req, res, next) {
         })
     } else {
         //Preflight CORS does OPTIONS request without headers. Let's not require Authorization then
-        if (req.method == 'OPTIONS' || req.path == '/register' || req.path == '/login'  ) {
+        if (req.method == 'OPTIONS' || req.path == '/register' || req.path == '/login' || req.path == '/datain' ) {
            return next(); 
         } else  {
            
@@ -459,6 +427,42 @@ app.delete(SERVICEPREFIX + '/user/:userId/site/:siteId/count/:countId', function
     });
 
 });
+
+
+/**
+ * Statistics Services....
+ */
+app.get(SERVICEPREFIX + '/stats/user/:userId/bysite', function (req, res, next) {
+    var uid = req.params.userId;
+    var statistics = {};
+    sequelize.query("select u.id as userId,s.id as siteId,s.name as siteName,c.id as countId,sum(c.hit) as hits from users u join sites s on u.id=s.userId join counts c on s.id=c.siteId where c.hit<>'null' and u.id=:userId group by u.id,s.id  ",
+        { replacements: { userId: parseInt(uid) }, type: sequelize.QueryTypes.SELECT }).then(results => {
+            res.json(results);
+        });
+});
+app.get(SERVICEPREFIX + '/stats/user/:userId/byday', function (req, res, next) {
+    var uid = req.params.userId;
+    var statistics = {};
+    sequelize.query("select s.name as siteName,date(c.updatedAt) as day, sum(hit) as hits from counts c join sites s on c.siteId=s.id where s.userId=:userId group by siteid,day,hostName ",
+        { replacements: { userId: parseInt(uid) }, type: sequelize.QueryTypes.SELECT }).then(results => {
+            res.json(results);
+        });
+});
+
+/**
+ * select pathName,sum(hit) as hits from counts where siteId=1 group by pathName
+ * fixME:  security issue ,need verify ,if the site owner is the user; 
+ */
+app.get(SERVICEPREFIX + '/stats/user/:userId/site/:siteId/bypathname',function(req,res,next){
+    var uid = req.params.userId;
+    var sid = req.params.siteId; 
+    var statistics = {};
+    sequelize.query(" select pathName,sum(hit) as hits from counts c where c.siteId=:siteId group by pathName ",
+        { replacements: { siteId: parseInt(sid) }, type: sequelize.QueryTypes.SELECT }).then(results => {
+            res.json(results);
+        });
+}); 
+
 
 /**
  * the Main entry point.....
