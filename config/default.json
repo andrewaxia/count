@@ -1,0 +1,14 @@
+{
+  "database": {
+    "host": "*",
+    "dbname": "*",
+    "countdbuser": "*",
+    "dbpassword": "*"
+  },
+  "secrets": {
+    "secret": "*",
+    "anohterSecret": "*",
+    "systemSecret": "*",
+    "sitesecret": "*"
+  }
+}

@@ -1,9 +1,0 @@
-module.exports={
-    'secret':'*',
-    'anohterSecret':'*',
-    'systemSecret':'*',
-    'sitesecret':'*',
-    'dbname':'*',
-    'countdbuser':'*',
-    'dbpassword':'*'
-}

@@ -4,9 +4,9 @@ var cookieParser = require('cookie-parser');
 var app = express();
 app.enable('trust proxy'); 
 app.use(cookieParser());
-var secrets = require('./utils/secrets.js')
+const config=require('config')
 const Sequelize = require('sequelize');
-const sequelize = new Sequelize(secrets.dbname, secrets.countdbuser, secrets.dbpassword, {
+const sequelize = new Sequelize(config.get("database.dbname"), config.get("database.countdbuser"), config.get("database.dbpassword"), {
     host: 'localhost',
     dialect: 'mysql',
     pool: {
@@ -62,7 +62,7 @@ User.Sites = User.hasMany(Site);
 //Site.belongsTo(User); 
 Site.Counts = Site.hasMany(Count);
 //Count.belongsTo(Site); 
-sequelize.sync({ force: true }).then(() => {
+sequelize.sync({ force: false }).then(() => {
     console.log('db synched up ');
 });
 
@@ -90,7 +90,7 @@ sequelize.sync({ force: true }).then(() => {
 // },include:[{association:Site.User}]}); 
 
 
-app.use("/statics", express.static(__dirname + "/statics"));
+app.use("/", express.static(__dirname + "/ui"));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({
     extended: true
@@ -124,12 +124,12 @@ app.post(SERVICEPREFIX + '/login', function (req, res, next) {
         if (user == null) {
             res.status(400).json({ info: "user not found" });
         } else {
-            var hashCode = require('crypto').createHash('sha256', secrets.secret).update(userPass).digest('hex')
+            var hashCode = require('crypto').createHash('sha256', config.get("secrets.secret")).update(userPass).digest('hex')
             if (hashCode == user.userPassword) {
                 var jwt = require('jsonwebtoken');
-                var token = jwt.sign({ userName: userPass, 'userId': user.id }, secrets.anohterSecret, { expiresIn: 60 * 60 })
+                var token = jwt.sign({ userName: userPass, 'userId': user.id }, config.get("secrets.anohterSecret"), { expiresIn: 60 * 60 })
                 res.cookie(AUTHCOOKIENAME, token);
-                res.json({ 'status': 'success', 'token': token });
+                res.json({ 'status': 'success', 'token': token ,'userid':user.id});
             } else {
                 res.status(400).json({ 'status': 'failed...', 'info': 'authentication failed...' });
             }
@@ -153,7 +153,7 @@ app.post(SERVICEPREFIX + '/register', function (req, res, next) {
     var userPasswod = req.body.password;
     User.findOne({ where: { 'userName': userName } }).then(user => {
         if (user == null) {
-            let hashCode = require('crypto').createHash('sha256', secrets.secret).update(userPasswod).digest('hex');
+            let hashCode = require('crypto').createHash('sha256', config.get("secrets.secret")).update(userPasswod).digest('hex');
             console.log(hashCode);
             User.create({ 'userName': userName, 'userPassword': hashCode }).then(createdUser => {
                 res.json(createdUser);
@@ -187,7 +187,7 @@ app.post(SERVICEPREFIX + '/register', function (req, res, next) {
 app.post(SERVICEPREFIX + '/datain', function (req, res, next) {
     var siteToken = req.body.siteToken;
     var jwt = require('jsonwebtoken');
-    jwt.verify(siteToken, secrets.sitesecret, function (error, siteInfo) {
+    jwt.verify(siteToken, config.get("secrets.sitesecret"), function (error, siteInfo) {
         if (error) {
             return res.status(401).json({ status: 'failed', info: 'permissions denied', errorMsg: error });
         } else {
@@ -217,7 +217,7 @@ apiRoutes.use(function (req, res, next) {
     var token = req.body.token || req.query.token || req.headers['x-access-token'] || req.cookies.authcookie;
     if (token) {
         var jwt = require('jsonwebtoken');
-        jwt.verify(token, secrets.anohterSecret, function (erro, decoded) {
+        jwt.verify(token, config.get("secrets.anohterSecret"), function (erro, decoded) {
             if (erro) {
                 res.status(401).json({ status: 'failed', info: 'permissions denied', error: erro });
             }
@@ -303,7 +303,7 @@ app.get(SERVICEPREFIX + '/user/:userId/site/:siteId/sitetoken', function (req, r
     var userInfo = req.decoded;
     var jwt = require('jsonwebtoken');
     if (userid == userInfo.userId) {
-        var siteToken = jwt.sign({ userId: userid, siteId: siteid }, secrets.sitesecret, { expiresIn: 60 * 60 * 60 * 60 * 10 }); //10 years 
+        var siteToken = jwt.sign({ userId: userid, siteId: siteid }, config.get("secrets.sitesecret"), { expiresIn: 60 * 60 * 60 * 60 * 10 }); //10 years 
         var signInfo = { 'siteToken': siteToken };
         return res.json(signInfo);
     } else {
@@ -440,11 +440,12 @@ app.get(SERVICEPREFIX + '/stats/user/:userId/bysite', function (req, res, next) 
             res.json(results);
         });
 });
-app.get(SERVICEPREFIX + '/stats/user/:userId/byday', function (req, res, next) {
+app.get(SERVICEPREFIX + '/stats/user/:userId/site/:siteId/byday', function (req, res, next) {
     var uid = req.params.userId;
+    var sid=req.params.siteId; 
     var statistics = {};
-    sequelize.query("select s.name as siteName,date(c.updatedAt) as day, sum(hit) as hits from counts c join sites s on c.siteId=s.id where s.userId=:userId group by siteid,day,hostName ",
-        { replacements: { userId: parseInt(uid) }, type: sequelize.QueryTypes.SELECT }).then(results => {
+    sequelize.query("select s.name as siteName,date(c.updatedAt) as day, sum(hit) as hits from counts c join sites s on c.siteId=s.id where s.userId=:userId and c.siteId=:siteId group by siteId,day,hostName order by day desc  limit 20 ",
+        { replacements: { userId: parseInt(uid),siteId:parseInt(sid) }, type: sequelize.QueryTypes.SELECT }).then(results => {
             res.json(results);
         });
 });
