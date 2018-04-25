@@ -194,7 +194,8 @@ app.post(SERVICEPREFIX + '/datain', function (req, res, next) {
             var userid = siteInfo.userId;
             var siteId = siteInfo.siteId;
             var dataIn = req.body.data; //extend this in future
-            dataIn.ip=req.ips; 
+            //TODO: look into this req.ips if the request is proxed by ngix or apache2 server ...
+            dataIn.ip=req.ip; 
             var countTobeCreated = dataIn;
             countTobeCreated.siteId = siteId;
             Count.create(countTobeCreated).then(createdCount => {
